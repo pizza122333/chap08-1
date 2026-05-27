@@ -1,0 +1,84 @@
+#include "opencv2/opencv.hpp"
+#include <iostream>
+
+using namespace cv;
+using namespace std;
+
+int main() {
+    // 1. 기본 카메라 장치 열기 (웹캠)
+    VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        cerr << "카메라를 열 수 없습니다!" << endl;
+        return -1;
+    }
+
+    Mat frame, dst;
+
+    // 현재 상태를 저장할 변수 (0: 정상, 1: 2배 확대, 2: 1/2 축소)
+    int mode = 0;
+
+    cout << "--- 조작 방법 ---" << endl;
+    cout << "a: 2배 확대 | b: 1/2 축소 | c: 정상 크기 | q: 종료" << endl;
+
+    while (true) {
+        // 카메라로부터 한 프레임 받아오기
+        cap >> frame;
+        if (frame.empty()) break;
+
+        float w = static_cast<float>(frame.cols);
+        float h = static_cast<float>(frame.rows);
+
+        // 원본 영상의 기준 점 3개 (좌상, 우상, 우하)
+        Point2f src_pts[3] = { Point2f(0, 0), Point2f(w - 1, 0), Point2f(w - 1, h - 1) };
+        Point2f dst_pts[3];
+        Mat M;
+
+        // 2. 현재 mode 상태에 따라 어파인 변환 행렬 및 크기 설정
+        if (mode == 1) {
+            // [a 누름] 2배 확대 설정
+            dst_pts[0] = Point2f(0, 0);
+            dst_pts[1] = Point2f((w - 1) * 2.0f, 0);
+            dst_pts[2] = Point2f((w - 1) * 2.0f, (h - 1) * 2.0f);
+
+            M = getAffineTransform(src_pts, dst_pts);
+            warpAffine(frame, dst, M, Size(frame.cols * 2, frame.rows * 2));
+        }
+        else if (mode == 2) {
+            // [b 누름] 1/2 축소 설정 (여백 유지)
+            dst_pts[0] = Point2f(0, 0);
+            dst_pts[1] = Point2f((w - 1) / 2.0f, 0);
+            dst_pts[2] = Point2f((w - 1) / 2.0f, (h - 1) / 2.0f);
+
+            M = getAffineTransform(src_pts, dst_pts);
+            warpAffine(frame, dst, M, frame.size());
+        }
+        else {
+            // [c 누름 또는 초기 상태] 정상 크기 변환 없이 그대로 출력
+            dst = frame.clone();
+        }
+
+        // 결과 화면 표시
+        imshow("Video", dst);
+
+        // 3. ?? 중요: 반복문 안에서 waitKey는 딱 한 번만 호출!
+        int key = waitKey(10);
+
+        // 키 입력 판별
+        if (key == 'a' || key == 'A') {
+            mode = 1;
+        }
+        else if (key == 'b' || key == 'B') {
+            mode = 2;
+        }
+        else if (key == 'c' || key == 'C') {
+            mode = 0;
+        }
+        else if (key == 'q' || key == 'Q') {
+            break; // 루프 탈출 및 프로그램 종료
+        }
+    }
+
+    cap.release();
+    destroyAllWindows();
+    return 0;
+}
